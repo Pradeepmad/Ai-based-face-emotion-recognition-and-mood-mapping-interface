@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoodSense AI - Emotion Tracker</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary: #f43f5e;
+            --dark: #1e293b;
+            --light: #f8fafc;
+            --gray: #94a3b8;
+            --success: #10b981;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #f1f5f9;
+            color: var(--dark);
+            line-height: 1.6;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            flex: 1;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            color: var(--primary-dark);
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+        }
+
+        header p {
+            color: var(--gray);
+            font-size: 1.1rem;
+        }
+
+        .permission-prompt {
+            background-color: white;
+            border-radius: 1rem;
+            padding: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 500px;
+            margin: 2rem auto;
+        }
+
+        .permission-prompt h2 {
+            margin-bottom: 1rem;
+            color: var(--dark);
+        }
+
+        .permission-prompt p {
+            margin-bottom: 1.5rem;
+            color: var(--gray);
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-dark);
+        }
+
+        .btn-secondary {
+            background-color: var(--secondary);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background-color: #e11d48;
+        }
+
+        .btn:disabled {
+            background-color: var(--gray);
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        .app-container {
+            display: none;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        .detection-section {
+            background-color: white;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .camera-container {
+            position: relative;
+            width: 100%;
+            max-width: 640px;
+            margin: 0 auto;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            aspect-ratio: 4/3;
+            background-color: #000;
+        }
+
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 2rem;
+        }
+
+        .current-mood, .mood-history {
+            background-color: white;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            margin-bottom: 1.5rem;
+            color: var(--dark);
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .emotion-display {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .emotion-icon {
+            font-size: 3rem;
+            width: 5rem;
+            height: 5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #e0e7ff;
+            border-radius: 50%;
+            color: var(--primary-dark);
+        }
+
+        .emotion-text {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .emotion-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary-dark);
+        }
+
+        .emotion-bars {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .emotion-bar {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .emotion-label {
+            width: 6rem;
+            font-weight: 500;
+            color: var(--dark);
+        }
+
+        .bar-container {
+            flex-grow: 1;
+            height: 1rem;
+            background-color: #e2e8f0;
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+
+        .bar {
+            height: 100%;
+            border-radius: 0.5rem;
+            transition: width 0.5s ease;
+        }
+
+        .emotion-percent {
+            width: 3.5rem;
+            text-align: right;
+            font-weight: 600;
+            color: var(--dark);
+        }
+
+        .chart-container {
+            height: 300px;
+            margin-bottom: 1.5rem;
+        }
+
+        .time-filters {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .time-filter {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--gray);
+            border-radius: 2rem;
+            background: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.875rem;
+        }
+
+        .time-filter.active {
+            background-color: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 3rem;
+            color: var(--gray);
+            font-size: 0.875rem;
+            padding: 1rem;
+        }
+
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            padding: 2rem;
+        }
+
+        .spinner {
+            width: 3rem;
+            height: 3rem;
+            border: 0.35rem solid rgba(99, 102, 241, 0.2);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+            
+            header h1 {
+                font-size: 2rem;
+            }
+            
+            .container {
+                padding: 1.5rem;
+            }
+        }
+
+        /* Emotion specific colors */
+        .happy { background-color: #10b981; }
+        .sad { background-color: #3b82f6; }
+        .angry { background-color: #ef4444; }
+        .fearful { background-color: #8b5cf6; }
+        .disgusted { background-color: #ec4899; }
+        .surprised { background-color: #f59e0b; }
+        .neutral { background-color: #64748b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 12a10 10 0 1 0-20 0"/>
+                    <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+                    <line x1="9" y1="9" x2="9.01" y2="9"/>
+                    <line x1="15" y1="9" x2="15.01" y2="9"/>
+                </svg>
+                MoodSense AI
+            </h1>
+            <p>Real-time emotion detection and mood tracking</p>
+        </header>
+
+        <div id="permissionPrompt" class="permission-prompt">
+            <h2>Camera Access Required</h2>
+            <p>To analyze your emotions, MoodSense needs access to your camera. Your video is processed locally and never leaves your device.</p>
+            <button id="enableCameraBtn" class="btn btn-primary">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/>
+                    <circle cx="12" cy="13" r="3"/>
+                </svg>
+                Enable Camera
+            </button>
+        </div>
+
+        <div id="loadingModels" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Loading AI models...</p>
+        </div>
+
+        <div id="appContainer" class="app-container">
+            <div class="detection-section">
+                <div class="camera-container">
+                    <video id="video" autoplay muted playsinline></video>
+                    <canvas id="canvas"></canvas>
+                </div>
+                <div class="controls">
+                    <button id="startBtn" class="btn btn-primary" disabled>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polygon points="10 8 16 12 10 16 10 8"/>
+                        </svg>
+                        Start Analysis
+                    </button>
+                    <button id="stopBtn" class="btn btn-secondary" disabled>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"/>
+                            <rect x="8" y="8" width="8" height="8"/>
+                        </svg>
+                        Stop
+                    </button>
+                    <button id="captureBtn" class="btn btn-primary" disabled>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/>
+                            <circle cx="12" cy="13" r="3"/>
+                        </svg>
+                        Capture Mood
+                    </button>
+                </div>
+            </div>
+
+            <div class="dashboard">
+                <div class="current-mood">
+                    <h2>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                            <circle cx="12" cy="7" r="4"/>
+                        </svg>
+                        Current Mood
+                    </h2>
+                    <div id="currentEmotion" class="emotion-display">
+                        <div class="emotion-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"/>
+                                <line x1="8" y1="15" x2="16" y2="15"/>
+                                <line x1="9" y1="9" x2="9.01" y2="9"/>
+                                <line x1="15" y1="9" x2="15.01" y2="9"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="emotion-text">Waiting for analysis</div>
+                            <div class="emotion-value">—</div>
+                        </div>
+                    </div>
+                    <div class="emotion-bars" id="emotionBars"></div>
+                </div>
+
+                <div class="mood-history">
+                    <h2>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                            <line x1="16" y1="2" x2="16" y2="6"/>
+                            <line x1="8" y1="2" x2="8" y2="6"/>
+                            <line x1="3" y1="10" x2="21" y2="10"/>
+                        </svg>
+                        Mood History
+                    </h2>
+                    <div class="chart-container">
+                        <canvas id="moodChart"></canvas>
+                    </div>
+                    <div class="time-filters">
+                        <button class="time-filter active" data-range="7">7 Days</button>
+                        <button class="time-filter" data-range="14">14 Days</button>
+                        <button class="time-filter" data-range="30">30 Days</button>
+                        <button class="time-filter" data-range="90">90 Days</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>All processing happens in your browser - your data never leaves your device</p>
+        </footer>
+    </div>
+
+    <script>
+        // DOM Elements
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const captureBtn = document.getElementById('captureBtn');
+        const currentEmotion = document.getElementById('currentEmotion');
+        const emotionBars = document.getElementById('emotionBars');
+        const timeFilters = document.querySelectorAll('.time-filter');
+        const permissionPrompt = document.getElementById('permissionPrompt');
+        const enableCameraBtn = document.getElementById('enableCameraBtn');
+        const loadingModels = document.getElementById('loadingModels');
+        const appContainer = document.getElementById('appContainer');
+
+        // Mood history data
+        let moodHistory = [];
+        let moodChart;
+        let detectionInterval;
+
+        // Emotion icons mapping
+        const emotionIcons = {
+            happy: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+                <line x1="9" y1="9" x2="9.01" y2="9"/>
+                <line x1="15" y1="9" x2="15.01" y2="9"/>
+            </svg>`,
+            sad: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M16 16s-1.5-2-4-2-4 2-4 2"/>
+                <line x1="9" y1="9" x2="9.01" y2="9"/>
+                <line x1="15" y1="9" x2="15.01" y2="9"/>
+            </svg>`,
+            angry: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+                <path d="M9 9h0"/>
+                <path d="M15 9h0"/>
+                <path d="M8 8l1.5-1.5"/>
+                <path d="M15.5 6.5L17 8"/>
+            </svg>`,
+            fearful: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+                <path d="M9 9h.01"/>
+                <path d="M15 9h.01"/>
+            </svg>`,
+            disgusted: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M16 16s-1.5-2-4-2-4 2-4 2"/>
+                <path d="M7.5 8 10 9"/>
+                <path d="m14 9 2.5-1"/>
+                <path d="M9 10h0"/>
+                <path d="M15 10h0"/>
+            </svg>`,
+            surprised: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <circle cx="12" cy="12" r="4"/>
+                <path d="M8 8h.01"/>
+                <path d="M16 8h.01"/>
+            </svg>`,
+            neutral: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="8" y1="15" x2="16" y2="15"/>
+                <line x1="9" y1="9" x2="9.01" y2="9"/>
+                <line x1="15" y1="9" x2="15.01" y2="9"/>
+            </svg>`
+        };
+
+        // Emotion colors mapping
+        const emotionColors = {
+            happy: '#10b981',
+            sad: '#3b82f6',
+            angry: '#ef4444',
+            fearful: '#8b5cf6',
+            disgusted: '#ec4899',
+            surprised: '#f59e0b',
+            neutral: '#64748b'
+        };
+
+        // Initialize face-api.js models
+        async function loadModels() {
+            try {
+                // Show loading indicator
+                permissionPrompt.style.display = 'none';
+                loadingModels.style.display = 'flex';
+                
+                // Load models from CDN
+                await faceapi.nets.tinyFaceDetector.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models');
+                await faceapi.nets.faceLandmark68Net.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models');
+                await faceapi.nets.faceRecognitionNet.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models');
+                await faceapi.nets.faceExpressionNet.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models');
+                
+                console.log('Models loaded successfully');
+                
+                // Hide loading and show app
+                loadingModels.style.display = 'none';
+                appContainer.style.display = 'flex';
+                startBtn.disabled = false;
+                
+                // Initialize chart
+                initMoodChart();
+                
+                // Add some sample data for demo
+                generateSampleData();
+            } catch (err) {
+                console.error('Failed to load models:', err);
+                loadingModels.innerHTML = `
+                    <div style="text-align: center; color: var(--secondary);">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="12" y1="8" x2="12" y2="12"/>
+                            <line x1="12" y1="16" x2="12.01" y2="16"/>
+                        </svg>
+                        <h3>Failed to load AI models</h3>
+                        <p>Please check your internet connection and refresh the page</p>
+                        <button onclick="window.location.reload()" class="btn btn-primary" style="margin-top: 1rem;">
+                            Refresh Page
+                        </button>
+                    </div>
+                `;
+            }
+        }
+
+        // Start camera and detection
+        async function startDetection() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
+                        facingMode: 'user' 
+                    },
+                    audio: false 
+                });
+                
+                video.srcObject = stream;
+                video.onloadedmetadata = () => {
+                    video.play();
+                    
+                    // Set canvas dimensions to match video
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    
+                    startBtn.disabled = true;
+                    stopBtn.disabled = false;
+                    captureBtn.disabled = false;
+                    
+                    // Start face detection
+                    detectFaces();
+                };
+            } catch (err) {
+                console.error('Error accessing camera:', err);
+                let errorMsg = 'Could not access the camera. ';
+                
+                if (err.name === 'NotAllowedError') {
+                    errorMsg += 'You denied camera access. Please refresh and allow camera permissions.';
+                } else if (err.name === 'NotFoundError') {
+                    errorMsg += 'No camera found on this device.';
+                } else if (err.name === 'NotReadableError') {
+                    errorMsg += 'Camera is already in use by another application.';
+                } else {
+                    errorMsg += 'Please try again or use a different browser.';
+                }
+                
+                alert(errorMsg);
+                startBtn.disabled = false;
+            }
+        }
+
+        // Stop camera
+        function stopDetection() {
+            const stream = video.srcObject;
+            const tracks = stream?.getTracks();
+            
+            tracks?.forEach(track => track.stop());
+            
+            video.srcObject = null;
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            captureBtn.disabled = true;
+            
+            // Clear canvas
+            const context = canvas.getContext('2d');
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Clear detection interval
+            if (detectionInterval) {
+                clearInterval(detectionInterval);
+                detectionInterval = null;
+            }
+        }
+
+        // Detect faces and expressions
+        async function detectFaces() {
+            if (!video.srcObject) return;
+            
+            try {
+                const detections = await faceapi.detectAllFaces(video, 
+                    new faceapi.TinyFaceDetectorOptions())
+                    .withFaceLandmarks()
+                    .withFaceExpressions();
+                
+                // Clear canvas
+                const context = canvas.getContext('2d');
+                context.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Draw detections
+                const resizedDetections = faceapi.resizeResults(detections, {
+                    width: video.videoWidth,
+                    height: video.videoHeight
+                });
+                
+                faceapi.draw.drawDetections(canvas, resizedDetections);
+                faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
+                
+                // Update UI with expressions
+                if (detections.length > 0) {
+                    const expressions = detections[0].expressions;
+                    updateEmotionUI(expressions);
+                } else {
+                    updateEmotionUI(null);
+                }
+                
+                // Continue detection
+                detectionInterval = setTimeout(detectFaces, 500);
+            } catch (err) {
+                console.error('Detection error:', err);
+                detectionInterval = setTimeout(detectFaces, 1000); // Retry after delay
+            }
+        }
+
+        // Update emotion display
+        function updateEmotionUI(expressions) {
+            if (!expressions) {
+                currentEmotion.innerHTML = `
+                    <div class="emotion-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="8" y1="15" x2="16" y2="15"/>
+                            <line x1="9" y1="9" x2="9.01" y2="9"/>
+                            <line x1="15" y1="9" x2="15.01" y2="9"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <div class="emotion-text">No face detected</div>
+                        <div class="emotion-value">—</div>
+                    </div>
+                `;
+                emotionBars.innerHTML = '<p style="color: var(--gray); text-align: center;">Position your face in front of the camera</p>';
+                return;
+            }
+            
+            // Find dominant emotion
+            let dominantEmotion = 'neutral';
+            let maxProbability = 0;
+            
+            for (const [emotion, probability] of Object.entries(expressions)) {
+                if (probability > maxProbability) {
+                    maxProbability = probability;
+                    dominantEmotion = emotion;
+                }
+            }
+            
+            // Update current emotion display
+            const emotionText = dominantEmotion.charAt(0).toUpperCase() + dominantEmotion.slice(1);
+            const emotionPercent = Math.round(maxProbability * 100);
+            currentEmotion.innerHTML = `
+                <div class="emotion-icon">
+                    ${emotionIcons[dominantEmotion]}
+                </div>
+                <div>
+                    <div class="emotion-text">${emotionText}</div>
+                    <div class="emotion-value">${emotionPercent}%</div>
+                </div>
+            `;
+            
+            // Update emotion bars
+            let barsHTML = '';
+            for (const [emotion, probability] of Object.entries(expressions)) {
+                const percent = Math.round(probability * 100);
+                barsHTML += `
+                    <div class="emotion-bar">
+                        <div class="emotion-label">${emotion.charAt(0).toUpperCase() + emotion.slice(1)}</div>
+                        <div class="bar-container">
+                            <div class="bar ${emotion}" style="width: ${percent}%"></div>
+                        </div>
+                        <div class="emotion-percent">${percent}%</div>
+                    </div>
+                `;
+            }
+            emotionBars.innerHTML = barsHTML;
+        }
+
+        // Capture current mood and add to history
+        function captureMood() {
+            if (!video.srcObject) return;
+            
+            const timestamp = new Date();
+            const currentTime = timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const currentDate = timestamp.toLocaleDateString();
+            
+            // Get current expressions (in a real app, this would come from the detection)
+            const expressions = {
+                happy: Math.random() * 0.5,
+                sad: Math.random() * 0.3,
+                angry: Math.random() * 0.2,
+                fearful: Math.random() * 0.1,
+                disgusted: Math.random() * 0.1,
+                surprised: Math.random() * 0.3,
+                neutral: Math.random() * 0.5
+            };
+            
+            // Find dominant emotion
+            let dominantEmotion = 'neutral';
+            let maxProbability = 0;
+            
+            for (const [emotion, probability] of Object.entries(expressions)) {
+                if (probability > maxProbability) {
+                    maxProbability = probability;
+                    dominantEmotion = emotion;
+                }
+            }
+            
+            // Add to history
+            moodHistory.push({
+                date: currentDate,
+                time: currentTime,
+                timestamp: timestamp,
+                emotion: dominantEmotion,
+                expressions: expressions
+            });
+            
+            // Update chart
+            updateMoodChart();
+            
+            // Show confirmation
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.innerHTML = `
+                <div style="position: fixed; bottom: 20px; right: 20px; background: var(--success); color: white; padding: 1rem; border-radius: 0.5rem; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); display: flex; align-items: center; gap: 0.5rem;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                    Mood captured: ${dominantEmotion} at ${currentTime}
+                </div>
+            `;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        // Initialize mood chart
+        function initMoodChart() {
+            const ctx = document.getElementById('moodChart').getContext('2d');
+            
+            moodChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Mood Level',
+                        data: [],
+                        borderColor: '#6366f1',
+                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                        borderWidth: 3,
+                        tension: 0.3,
+                        fill: true,
+                        pointBackgroundColor: '#6366f1',
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const data = moodHistory[context.dataIndex];
+                                    return [
+                                        `Mood: ${data.emotion}`,
+                                        `Time: ${data.time}`,
+                                        `Happy: ${Math.round(data.expressions.happy * 100)}%`,
+                                        `Neutral: ${Math.round(data.expressions.neutral * 100)}%`
+                                    ];
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update mood chart with filtered data
+        function updateMoodChart(days = 7) {
+            if (!moodHistory.length) return;
+            
+            // Filter data by days
+            const cutoffDate = new Date();
+            cutoffDate.setDate(cutoffDate.getDate() - days);
+            
+            const filteredData = moodHistory.filter(entry => 
+                new Date(entry.timestamp) >= cutoffDate
+            );
+            
+            // Prepare chart data
+            const labels = filteredData.map(entry => entry.date);
+            const data = filteredData.map(entry => entry.expressions.happy * 100);
+            
+            // Update chart
+            moodChart.data.labels = labels;
+            moodChart.data.datasets[0].data = data;
+            moodChart.update();
+        }
+
+                // Generate sample data for demo purposes
+        function generateSampleData() {
+            const emotions = ['happy', 'sad', 'angry', 'fearful', 'disgusted', 'surprised', 'neutral'];
+            const now = new Date();
+            
+            for (let i = 0; i < 30; i++) {
+                const date = new Date();
+                date.setDate(now.getDate() - (30 - i));
+                
+                const randomEmotion = emotions[Math.floor(Math.random() * emotions.length)];
+                const expressions = {
+                    happy: Math.random() * 0.5,
+                    sad: Math.random() * 0.3,
+                    angry: Math.random() * 0.2,
+                    fearful: Math.random() * 0.1,
+                    disgusted: Math.random() * 0.1,
+                    surprised: Math.random() * 0.3,
+                    neutral: Math.random() * 0.5
+                };
+                
+                // Ensure the random emotion has the highest probability
+                expressions[randomEmotion] = Math.max(0.7, Math.random());
+                
+                moodHistory.push({
+                    date: date.toLocaleDateString(),
+                    time: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    timestamp: date,
+                    emotion: randomEmotion,
+                    expressions: expressions
+                });
+            }
+            
+            // Sort by date
+            moodHistory.sort((a, b) => a.timestamp - b.timestamp);
+            
+            // Update chart with default 7-day view
+            updateMoodChart(7);
+        }
+
+        // Event Listeners
+        enableCameraBtn.addEventListener('click', () => {
+            loadModels();
+        });
+
+        startBtn.addEventListener('click', () => {
+            startDetection();
+        });
+
+        stopBtn.addEventListener('click', () => {
+            stopDetection();
+        });
+
+        captureBtn.addEventListener('click', () => {
+            captureMood();
+        });
+
+        timeFilters.forEach(filter => {
+            filter.addEventListener('click', () => {
+                timeFilters.forEach(f => f.classList.remove('active'));
+                filter.classList.add('active');
+                updateMoodChart(parseInt(filter.dataset.range));
+            });
+        });
+
+        // Check for localStorage data on load
+        window.addEventListener('DOMContentLoaded', () => {
+            // In a real app, you would load saved mood history from localStorage
+            // try {
+            //     const savedData = localStorage.getItem('moodHistory');
+            //     if (savedData) {
+            //         moodHistory = JSON.parse(savedData).map(item => ({
+            //             ...item,
+            //             timestamp: new Date(item.timestamp)
+            //         }));
+            //         updateMoodChart(7);
+            //     }
+            // } catch (err) {
+            //     console.error('Failed to load saved data:', err);
+            // }
+            
+            // For demo purposes, we'll just show the permission prompt
+        });
+
+        // Save to localStorage before unload
+        window.addEventListener('beforeunload', () => {
+            // In a real app, you would save the mood history
+            // try {
+            //     localStorage.setItem('moodHistory', JSON.stringify(moodHistory));
+            // } catch (err) {
+            //     console.error('Failed to save data:', err);
+            // }
+        });
+    </script>
+</body>
+</html>
